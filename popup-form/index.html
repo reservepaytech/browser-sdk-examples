@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Popup form · Reservepay examples</title>
+    <link rel="stylesheet" href="/shared/style.css" />
+    <!-- Load the SDK from Reservepay's servers. Never bundle or self-host it (PCI). -->
+    <script src="https://sdk.reservepay.com/js/v1/reservepay.js"></script>
+    <!-- Example only: serves your merchant and installation IDs. In your shop, inline them. -->
+    <script src="/config.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Popup form</h1>
+      <button id="reservepay-popup-trigger">Pay THB 1,000.00</button>
+      <p id="status"></p>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

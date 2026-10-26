@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Checkout result · Reservepay examples</title>
+    <link rel="stylesheet" href="/shared/style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Checkout result</h1>
+      <p id="status">Checking payment status…</p>
+      <a href="./">Back</a>
+    </main>
+    <script type="module">
+      // Reservepay sends the customer back to your return_url whatever the outcome.
+      // Ask your backend for the real status (retrieve-checkout, then find-payment).
+      const orderId = new URLSearchParams(location.search).get("order")
+      const response = await fetch(`/api/checkouts/${encodeURIComponent(orderId)}`)
+      const result = await response.json()
+      document.querySelector("#status").textContent = response.ok
+        ? `Order ${result.orderId}: ${result.status}`
+        : result.error
+    </script>
+  </body>
+</html>
