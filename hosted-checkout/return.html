@@ -16,7 +16,11 @@
       // Reservepay sends the customer back to your return_url whatever the outcome.
       // Ask your backend for the real status (retrieve-checkout, then find-payment).
       const orderId = new URLSearchParams(location.search).get("order")
-      const response = await fetch(`/api/checkouts/${encodeURIComponent(orderId)}`)
+      const response = await fetch("/api/retrieve-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      })
       const result = await response.json()
       document.querySelector("#status").textContent = response.ok
         ? `Order ${result.orderId}: ${result.status}`

@@ -67,3 +67,12 @@ input {
   margin-top: 16px;
   background: #fff;
 }
+
+[data-status="SUCCESSFUL"] #title {
+  color: #16a34a;
+}
+
+[data-status="FAILED"] #title,
+[data-status="EXPIRED"] #title {
+  color: #dc2626;
+}

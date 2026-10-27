@@ -20,7 +20,7 @@ const reservepay = {
   async initiatePaymentFlow(args) {
     calls.push(["initiatePaymentFlow", args])
     if (args.payment_session_id === "bad") throw new ReservepayApiError("initiate-payment-flow", 422, [{ code: "INVALID" }])
-    return { payment_id: "pay_1" }
+    return "pay_1"
   },
   async startCheckout(args) {
     calls.push(["startCheckout", args])
@@ -56,27 +56,37 @@ test("config.js exposes public IDs and never the API key", async () => {
 })
 
 test("initiating a payment uses the server-side amount and a same-origin return URL", async () => {
-  const response = await postJson("/api/payments", { paymentSessionId: "ps_1", returnPath: "//evil.example/x" })
+  const response = await postJson("/api/initiate-payment-flow", { paymentSessionId: "ps_1", returnPath: "//evil.example/x" })
   assert.deepEqual(await response.json(), { paymentId: "pay_1" })
   const [, args] = calls.findLast(([name]) => name === "initiatePaymentFlow")
   assert.equal(args.amount, ORDER.amount)
   assert.equal(args.return_url, "https://shop.example.test/")
   assert.match(args.external_id, /^order_/)
+
+  await postJson("/api/initiate-payment-flow", { paymentSessionId: "ps_1", returnPath: "/\\evil.example/x" })
+  assert.equal(calls.findLast(([name]) => name === "initiatePaymentFlow")[1].return_url, "https://shop.example.test/")
+})
+
+test("payment status is confirmed by payment session ID", async () => {
+  await postJson("/api/initiate-payment-flow", { paymentSessionId: "ps_2" })
+  const result = await (await postJson("/api/find-payment", { paymentSessionId: "ps_2" })).json()
+  assert.deepEqual(result, { paymentId: "pay_1", status: "SUCCESSFUL" })
+  assert.equal((await postJson("/api/find-payment", { paymentSessionId: "ps_unknown" })).status, 404)
 })
 
 test("API errors surface as 502 with the Reservepay error body", async () => {
-  const response = await postJson("/api/payments", { paymentSessionId: "bad" })
+  const response = await postJson("/api/initiate-payment-flow", { paymentSessionId: "bad" })
   assert.equal(response.status, 502)
   assert.deepEqual((await response.json()).details, [{ code: "INVALID" }])
 })
 
 test("hosted checkout redirects, then confirms status by order", async () => {
-  const { redirectUrl } = await (await postJson("/api/checkouts", {})).json()
+  const { redirectUrl } = await (await postJson("/api/start-checkout", {})).json()
   assert.equal(redirectUrl, "https://checkout.example.test/chk_1")
 
   const [, args] = calls.findLast(([name]) => name === "startCheckout")
   const orderId = new URL(args.return_url).searchParams.get("order")
-  const result = await (await fetch(`${baseUrl}/api/checkouts/${orderId}`)).json()
+  const result = await (await postJson("/api/retrieve-checkout", { orderId })).json()
   assert.deepEqual(result, { orderId, paymentId: "pay_1", status: "SUCCESSFUL" })
 })
 
@@ -93,7 +103,7 @@ test("webhooks reject bad signatures and accept valid ones", async () => {
 })
 
 test("pages are served with the configured SDK URL", async () => {
-  for (const page of ["/", "/pre-built/embedded/", "/pre-built/popup/", "/hosted-checkout/", "/own-ui/card/", "/own-ui/promptpay/"]) {
+  for (const page of ["/", "/pre-built/embedded/", "/pre-built/popup/", "/hosted-checkout/", "/own-ui/card/", "/own-ui/promptpay/", "/result/"]) {
     const response = await fetch(`${baseUrl}${page}`)
     assert.equal(response.status, 200, page)
     const html = await response.text()

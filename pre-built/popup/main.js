@@ -1,7 +1,4 @@
 const { merchantId, installationId, amount } = window.exampleConfig
-const status = document.querySelector("#status")
-
-let paymentId
 
 window.Reservepay.initReservepayFormUI({
   formType: "popup",
@@ -14,23 +11,25 @@ window.Reservepay.initReservepayFormUI({
     // 1. The customer entered payment details. Send the session to your backend,
     //    which authorizes it with your secret API key.
     async onPaymentSessionReady(sessionId) {
-      const response = await fetch("/api/payments", {
+      const response = await fetch("/api/initiate-payment-flow", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentSessionId: sessionId, returnPath: location.pathname }),
+        // After a redirect to the customer's bank, Reservepay sends them to the result page.
+        body: JSON.stringify({ paymentSessionId: sessionId, returnPath: resultPath(sessionId) }),
       })
       if (!response.ok) throw new Error("Could not start the payment")
-      ;({ paymentId } = await response.json())
     },
-    // 2. Use callbacks for the UI only. Fulfill the order after your backend
-    //    confirms the status (find-payment) or a payment_completed webhook arrives.
-    async onPaymentSuccess() {
-      const response = await fetch(`/api/payments/${paymentId}`)
-      const payment = await response.json()
-      status.textContent = `Payment ${payment.paymentId}: ${payment.status}`
-    },
-    onPaymentFailed() {
-      status.textContent = "Payment failed. Try again."
-    },
+    // 2. Use callbacks for the UI only. The result page asks your backend for the real status.
+    //    Fulfill the order after find-payment or a payment_completed webhook says SUCCESSFUL.
+    onPaymentSuccess: showResult,
+    onPaymentFailed: showResult,
   },
 })
+
+function showResult(sessionId) {
+  location.href = resultPath(sessionId)
+}
+
+function resultPath(sessionId) {
+  return `/result/?session=${encodeURIComponent(sessionId)}&back=${encodeURIComponent(location.pathname)}`
+}

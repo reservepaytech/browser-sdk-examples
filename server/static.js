@@ -8,7 +8,7 @@ export const PRODUCTION_SDK_URL = "https://sdk.reservepay.com/js/v1/reservepay.j
 export const EXAMPLE_PAGES = ["pre-built/embedded", "pre-built/popup", "hosted-checkout", "own-ui/card", "own-ui/promptpay"]
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url))
-const PUBLIC_DIRS = ["shared", ...new Set(EXAMPLE_PAGES.map((page) => page.split("/")[0]))]
+const PUBLIC_DIRS = ["shared", "result", ...new Set(EXAMPLE_PAGES.map((page) => page.split("/")[0]))]
 const CONTENT_TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" }
 
 // Returns { status, body, contentType }. Only files under PUBLIC_DIRS (and the root index.html) are served.

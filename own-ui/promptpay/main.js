@@ -10,14 +10,13 @@ button.addEventListener("click", async () => {
   qrCode.hidden = true
 
   try {
-    status.textContent = `Payment: ${await pay()}`
+    showResult(await pay())
   } catch (error) {
     console.error(error)
     status.textContent = "Payment could not be completed."
+    qrCode.hidden = true
+    button.disabled = false
   }
-  qrCode.hidden = true
-  // A new click starts a new payment, for example after the QR code expires.
-  button.disabled = false
 })
 
 async function pay() {
@@ -29,7 +28,7 @@ async function pay() {
   })
 
   // 2. Your backend authorizes the session with your secret API key.
-  const response = await fetch("/api/payments", {
+  const response = await fetch("/api/initiate-payment-flow", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paymentSessionId, returnPath: location.pathname }),
@@ -58,9 +57,9 @@ async function pay() {
       countdown = session.expires_at && startCountdown(session.expires_at * 1000)
     }
 
-    // 5. Poll while the QR code is on screen. Resolves with SUCCESSFUL, FAILED or EXPIRED.
-    // Your backend should still confirm the status before fulfillment.
-    return await checkStatusPolling.execute({ payment_session_id: paymentSessionId })
+    // 5. Poll while the QR code is on screen, until SUCCESSFUL, FAILED or EXPIRED.
+    await checkStatusPolling.execute({ payment_session_id: paymentSessionId })
+    return paymentSessionId
   } finally {
     // Always stop polling, or it keeps calling the API in the background.
     nextActionPolling.abort()
@@ -78,6 +77,11 @@ function startCountdown(expiresAtMs) {
   }
   update()
   return setInterval(update, 1000)
+}
+
+// The result page asks your backend for the real status (find-payment).
+function showResult(paymentSessionId) {
+  location.href = `/result/?session=${encodeURIComponent(paymentSessionId)}&back=${encodeURIComponent(location.pathname)}`
 }
 
 function renderQrCode(text) {

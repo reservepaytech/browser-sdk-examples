@@ -1,11 +1,12 @@
 // Example backend for every integration in this repo. Plain node:http, no dependencies.
+// Each /api/ route is a POST named after the Reservepay endpoint it calls.
 //
-//   GET  /config.js                 public IDs for the browser (never the API key)
-//   POST /api/payments              embedded, popup, own UI (card, PromptPay): initiate the payment flow
-//   GET  /api/payments/:paymentId   confirm the payment status
-//   POST /api/checkouts             hosted checkout: start a checkout, return its redirect_url
-//   GET  /api/checkouts/:orderId    hosted checkout: status after the customer returns
-//   POST /webhooks/reservepay       verify and record webhook events
+//   GET  /config.js                  public IDs for the browser (never the API key)
+//   POST /api/initiate-payment-flow  embedded, popup, own UI (card, PromptPay): authorize the payment session
+//   POST /api/find-payment           confirm the payment status by payment session ID
+//   POST /api/start-checkout         hosted checkout: start a checkout, return its redirect_url
+//   POST /api/retrieve-checkout      hosted checkout: status after the customer returns
+//   POST /webhooks/reservepay        verify and record webhook events
 
 import { randomUUID } from "node:crypto"
 import { createServer } from "node:http"
@@ -35,6 +36,7 @@ export function loadConfig(env = process.env) {
 export function createApp(config, { reservepay = createReservepayClient(config) } = {}) {
   // Demo storage. Use your database in production.
   const checkoutsByOrder = new Map()
+  const paymentsBySession = new Map()
   const seenEventIds = new Set()
 
   const routes = {
@@ -48,9 +50,10 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
       send(res, 200, `window.exampleConfig = ${JSON.stringify(publicConfig)}\n`, "text/javascript")
     },
 
-    "POST /api/payments": async (req, res) => {
+    "POST /api/initiate-payment-flow": async (req, res) => {
       const { paymentSessionId, returnPath } = JSON.parse(await readBody(req))
-      const payment = await reservepay.initiatePaymentFlow({
+      // Returns the new payment's ID as a string.
+      const paymentId = await reservepay.initiatePaymentFlow({
         amount: ORDER.amount,
         currency: ORDER.currency,
         payment_session_id: paymentSessionId,
@@ -59,15 +62,21 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
         // Your order reference. Retrying with the same external_id returns the same payment.
         external_id: `order_${randomUUID()}`,
       })
-      sendJson(res, 200, { paymentId: payment.payment_id })
+      // Keep the payment ID with the session. The SDK callbacks only give the browser the session ID,
+      // and the page can reload in between (for example after a redirect to the customer's bank).
+      paymentsBySession.set(paymentSessionId, paymentId)
+      sendJson(res, 200, { paymentId })
     },
 
-    "GET /api/payments/:id": async (req, res, paymentId) => {
+    "POST /api/find-payment": async (req, res) => {
+      const { paymentSessionId } = JSON.parse(await readBody(req))
+      const paymentId = paymentsBySession.get(paymentSessionId)
+      if (!paymentId) return sendJson(res, 404, { error: "Unknown payment session" })
       const payment = await reservepay.findPayment(paymentId)
       sendJson(res, 200, { paymentId, status: payment.status })
     },
 
-    "POST /api/checkouts": async (req, res) => {
+    "POST /api/start-checkout": async (req, res) => {
       const orderId = `order_${randomUUID()}`
       const checkout = await reservepay.startCheckout({
         installation_id: config.installationId,
@@ -79,7 +88,8 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
       sendJson(res, 200, { redirectUrl: checkout.redirect_url })
     },
 
-    "GET /api/checkouts/:id": async (req, res, orderId) => {
+    "POST /api/retrieve-checkout": async (req, res) => {
+      const { orderId } = JSON.parse(await readBody(req))
       const checkoutId = checkoutsByOrder.get(orderId)
       if (!checkoutId) return sendJson(res, 404, { error: "Unknown order" })
 
@@ -116,9 +126,9 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
 
   const app = async (req, res) => {
     const { pathname } = new URL(req.url, config.baseUrl)
-    const [handler, param] = matchRoute(routes, req.method, pathname)
+    const handler = routes[`${req.method} ${pathname}`]
     try {
-      if (handler) return await handler(req, res, param)
+      if (handler) return await handler(req, res)
       if (req.method === "GET") {
         const file = await readStaticFile(pathname, config)
         return send(res, file.status, file.body, file.contentType)
@@ -135,16 +145,9 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
   return app
 }
 
-function matchRoute(routes, method, pathname) {
-  if (routes[`${method} ${pathname}`]) return [routes[`${method} ${pathname}`]]
-  const match = pathname.match(/^(\/api\/\w+)\/([\w-]+)$/)
-  if (match && routes[`${method} ${match[1]}/:id`]) return [routes[`${method} ${match[1]}/:id`], match[2]]
-  return []
-}
-
-// Only same-origin paths, so the return URL cannot point at another site.
+// Only same-origin paths. Reject "//host" and "/\host", which browsers treat as another site.
 function returnUrl(config, returnPath) {
-  const path = typeof returnPath === "string" && /^\/(?!\/)/.test(returnPath) ? returnPath : "/"
+  const path = typeof returnPath === "string" && /^\/(?![\/\\])/.test(returnPath) ? returnPath : "/"
   return new URL(path, config.baseUrl).toString()
 }
 

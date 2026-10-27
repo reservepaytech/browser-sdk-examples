@@ -4,7 +4,7 @@ const status = document.querySelector("#status")
 button.addEventListener("click", async () => {
   button.disabled = true
   // Your backend calls merchants/start-checkout and returns the checkout's redirect_url.
-  const response = await fetch("/api/checkouts", { method: "POST" })
+  const response = await fetch("/api/start-checkout", { method: "POST" })
   if (!response.ok) {
     status.textContent = "Could not start the checkout."
     button.disabled = false

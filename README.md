@@ -9,6 +9,7 @@ Runnable examples for accepting payments on the web with Reservepay. Each one pa
 | [`hosted-checkout/`](hosted-checkout) | Redirect to a Reservepay-hosted payment page | [Hosted checkout](https://developer.reservepay.com/guides/accept-payments-via-hosted-checkout) |
 | [`own-ui/card/`](own-ui/card) | Your own UI with secure card field iframes, plus 3D Secure | [Your own UI](https://developer.reservepay.com/guides/accept-payments-using-your-own-ui) |
 | [`own-ui/promptpay/`](own-ui/promptpay) | Your own UI that renders a PromptPay QR code and waits for payment | [Your own UI](https://developer.reservepay.com/guides/accept-payments-using-your-own-ui) |
+| [`result/`](result) | Success, failed and expired page. The pre-built and own UI examples open it, and it confirms the status with your backend | [Payment lifecycle](https://developer.reservepay.com/guides/payment-lifecycle) |
 | [`server/`](server) | Backend for all of the above, plus webhook signature verification | [Real-time notifications](https://developer.reservepay.com/guides/real-time-notifications) |
 
 ## Run it
@@ -40,10 +41,10 @@ Requires Node.js 24 or later. There are no dependencies to install.
 
      Server
        GET  http://demo.localhost:6767/config.js
-       POST http://demo.localhost:6767/api/payments
-       GET  http://demo.localhost:6767/api/payments/:id
-       POST http://demo.localhost:6767/api/checkouts
-       GET  http://demo.localhost:6767/api/checkouts/:id
+       POST http://demo.localhost:6767/api/initiate-payment-flow
+       POST http://demo.localhost:6767/api/find-payment
+       POST http://demo.localhost:6767/api/start-checkout
+       POST http://demo.localhost:6767/api/retrieve-checkout
        POST http://demo.localhost:6767/webhooks/reservepay  (reachable only through a public tunnel, see README)
    ```
 
@@ -56,16 +57,17 @@ Got a value wrong? Edit `.env` and save. The server restarts with the new values
 ```
 Browser page                    Your server (server/)                Reservepay API
 -----------                     ---------------------                --------------
-SDK creates payment session --> POST /api/payments --------------->  merchants/initiate-payment-flow
-onPaymentSuccess            --> GET  /api/payments/:id ----------->  merchants/find-payment
-Checkout button             --> POST /api/checkouts -------------->  merchants/start-checkout
-Return page (hosted)        --> GET  /api/checkouts/:id ---------->  merchants/retrieve-checkout
+SDK creates payment session --> POST /api/initiate-payment-flow -->  merchants/initiate-payment-flow
+Result page                 --> POST /api/find-payment ----------->  merchants/find-payment
+Checkout button             --> POST /api/start-checkout --------->  merchants/start-checkout
+Return page (hosted)        --> POST /api/retrieve-checkout ------>  merchants/retrieve-checkout
                                                                      + merchants/find-payment
                                 POST /webhooks/reservepay  <-------  payment_completed event
 ```
 
 - **The API key stays on the server.** The browser only gets public values from `/config.js`: your merchant ID, installation ID, and the order amount and currency.
 - **The server sets the amount.** Never trust an amount sent from the browser.
+- **Keep the payment ID with the session.** The SDK callbacks give the browser only the payment session ID, so `/api/initiate-payment-flow` stores the payment ID under it and the result page looks it up.
 - **Callbacks are for UI.** Fulfill orders only after `merchants/find-payment` or a verified `payment_completed` webhook says `SUCCESSFUL`.
 - **Load the SDK from `sdk.reservepay.com`.** Do not bundle or self-host it. This keeps you in the lightest PCI scope.
 
@@ -101,7 +103,8 @@ Any other tunnel works too, for example `ngrok http 6767`.
 | --- | --- |
 | `Missing in .env: ...` when the server starts | Fill in the listed values in `.env`. |
 | The card form never appears, or shows "Authentication failed" | `RESERVEPAY_MERCHANT_ID` or `RESERVEPAY_INSTALLATION_ID` is wrong, or the installation's platform is not **Web**. |
-| `/api/payments` or `/api/checkouts` returns `502` | Reservepay rejected the API call. The response's `details` holds Reservepay's error list. Check that `RESERVEPAY_API_KEY` is a test mode key from the same merchant. |
+| An `/api/` call returns `502` | Reservepay rejected the API call. The response's `details` holds Reservepay's error list. Check that `RESERVEPAY_API_KEY` is a test mode key from the same merchant. |
+| Result page says "Unknown payment session" | The server restarted (for example after a `.env` edit) and lost its in-memory demo storage, or `/api/initiate-payment-flow` failed earlier, so no payment was stored. Check the server log and start a new payment. |
 | `webhook rejected` in the terminal, or `401` in the tunnel log | `RESERVEPAY_WEBHOOK_KEY` or `RESERVEPAY_WEBHOOK_SIGNATURE_TYPE` doesn't match the webhook in the dashboard. |
 | PromptPay fails before showing a QR code | PromptPay isn't enabled for the installation. Select it under the installation's payment methods in the dashboard. |
 | Custom card fields never show a 3D Secure challenge | Expected for some accounts. 3D Secure can be off or apply only above a minimum amount, so the payment goes straight to its final status. |

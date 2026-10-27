@@ -44,7 +44,7 @@ form.addEventListener("submit", async (event) => {
   form.querySelector("button").disabled = true
 
   try {
-    status.textContent = `Payment: ${await pay()}`
+    showResult(await pay())
   } catch (error) {
     console.error(error)
     status.textContent = "Payment could not be completed."
@@ -68,7 +68,7 @@ async function pay() {
   })
 
   // 3. Your backend authorizes the session with your secret API key.
-  const response = await fetch("/api/payments", {
+  const response = await fetch("/api/initiate-payment-flow", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ paymentSessionId, returnPath: location.pathname }),
@@ -96,12 +96,18 @@ async function pay() {
       })
     }
 
-    // 5. The final status for your UI. Your backend should still confirm it before fulfillment.
-    return await checkStatusPolling.execute({ payment_session_id: paymentSessionId })
+    // 5. Wait for the final status: SUCCESSFUL or FAILED.
+    await checkStatusPolling.execute({ payment_session_id: paymentSessionId })
+    return paymentSessionId
   } finally {
-    // Always stop polling, or it keeps calling the API for up to 10 minutes.
+    // Always stop polling, or it keeps calling the API for up to 30 minutes.
     nextActionPolling.abort()
     checkStatusPolling.abort()
     threeDSecure?.destroy()
   }
+}
+
+// The result page asks your backend for the real status (find-payment).
+function showResult(paymentSessionId) {
+  location.href = `/result/?session=${encodeURIComponent(paymentSessionId)}&back=${encodeURIComponent(location.pathname)}`
 }
