@@ -93,17 +93,17 @@ test("webhooks reject bad signatures and accept valid ones", async () => {
 })
 
 test("pages are served with the configured SDK URL", async () => {
-  for (const page of ["/", "/embedded-form/", "/popup-form/", "/hosted-checkout/", "/custom-card-fields/"]) {
+  for (const page of ["/", "/pre-built/embedded/", "/pre-built/popup/", "/hosted-checkout/", "/own-ui/card/", "/own-ui/promptpay/"]) {
     const response = await fetch(`${baseUrl}${page}`)
     assert.equal(response.status, 200, page)
     const html = await response.text()
     assert.doesNotMatch(html, /sdk\.reservepay\.com/, page)
   }
-  assert.match(await (await fetch(`${baseUrl}/embedded-form/`)).text(), /sdk\.example\.test/)
+  assert.match(await (await fetch(`${baseUrl}/pre-built/embedded/`)).text(), /sdk\.example\.test/)
 })
 
 test("server code and secrets are not served", async () => {
-  for (const path of ["/server/index.js", "/.env", "/.env.example", "/package.json", "/embedded-form/../server/index.js"]) {
+  for (const path of ["/server/index.js", "/.env", "/.env.example", "/package.json", "/pre-built/embedded/../server/index.js"]) {
     assert.equal((await fetch(`${baseUrl}${path}`)).status, 404, path)
   }
 })

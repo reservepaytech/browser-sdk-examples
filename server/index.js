@@ -1,7 +1,7 @@
 // Example backend for every integration in this repo. Plain node:http, no dependencies.
 //
 //   GET  /config.js                 public IDs for the browser (never the API key)
-//   POST /api/payments              embedded, popup, custom card fields: initiate the payment flow
+//   POST /api/payments              embedded, popup, own UI (card, PromptPay): initiate the payment flow
 //   GET  /api/payments/:paymentId   confirm the payment status
 //   POST /api/checkouts             hosted checkout: start a checkout, return its redirect_url
 //   GET  /api/checkouts/:orderId    hosted checkout: status after the customer returns

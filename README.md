@@ -4,10 +4,11 @@ Runnable examples for accepting payments on the web with Reservepay. Each one pa
 
 | Example | What it shows | Guide |
 | --- | --- | --- |
-| [`embedded-form/`](embedded-form) | Pre-built form inside your checkout page | [Pre-built forms](https://developer.reservepay.com/guides/accept-payments-via-pre-built-forms) |
-| [`popup-form/`](popup-form) | Pre-built form opened from your own button | [Pre-built forms](https://developer.reservepay.com/guides/accept-payments-via-pre-built-forms) |
+| [`pre-built/embedded/`](pre-built/embedded) | Pre-built form inside your checkout page | [Pre-built forms](https://developer.reservepay.com/guides/accept-payments-via-pre-built-forms) |
+| [`pre-built/popup/`](pre-built/popup) | Pre-built form opened from your own button | [Pre-built forms](https://developer.reservepay.com/guides/accept-payments-via-pre-built-forms) |
 | [`hosted-checkout/`](hosted-checkout) | Redirect to a Reservepay-hosted payment page | [Hosted checkout](https://developer.reservepay.com/guides/accept-payments-via-hosted-checkout) |
-| [`custom-card-fields/`](custom-card-fields) | Your own UI with secure card field iframes, plus 3D Secure | [Your own UI](https://developer.reservepay.com/guides/accept-payments-using-your-own-ui) |
+| [`own-ui/card/`](own-ui/card) | Your own UI with secure card field iframes, plus 3D Secure | [Your own UI](https://developer.reservepay.com/guides/accept-payments-using-your-own-ui) |
+| [`own-ui/promptpay/`](own-ui/promptpay) | Your own UI that renders a PromptPay QR code and waits for payment | [Your own UI](https://developer.reservepay.com/guides/accept-payments-using-your-own-ui) |
 | [`server/`](server) | Backend for all of the above, plus webhook signature verification | [Real-time notifications](https://developer.reservepay.com/guides/real-time-notifications) |
 
 ## Run it
@@ -31,10 +32,11 @@ Requires Node.js 24 or later. There are no dependencies to install.
 
      Pages
        http://demo.localhost:6767/
-       http://demo.localhost:6767/embedded-form/
-       http://demo.localhost:6767/popup-form/
+       http://demo.localhost:6767/pre-built/embedded/
+       http://demo.localhost:6767/pre-built/popup/
        http://demo.localhost:6767/hosted-checkout/
-       http://demo.localhost:6767/custom-card-fields/
+       http://demo.localhost:6767/own-ui/card/
+       http://demo.localhost:6767/own-ui/promptpay/
 
      Server
        GET  http://demo.localhost:6767/config.js
@@ -101,6 +103,7 @@ Any other tunnel works too, for example `ngrok http 6767`.
 | The card form never appears, or shows "Authentication failed" | `RESERVEPAY_MERCHANT_ID` or `RESERVEPAY_INSTALLATION_ID` is wrong, or the installation's platform is not **Web**. |
 | `/api/payments` or `/api/checkouts` returns `502` | Reservepay rejected the API call. The response's `details` holds Reservepay's error list. Check that `RESERVEPAY_API_KEY` is a test mode key from the same merchant. |
 | `webhook rejected` in the terminal, or `401` in the tunnel log | `RESERVEPAY_WEBHOOK_KEY` or `RESERVEPAY_WEBHOOK_SIGNATURE_TYPE` doesn't match the webhook in the dashboard. |
+| PromptPay fails before showing a QR code | PromptPay isn't enabled for the installation. Select it under the installation's payment methods in the dashboard. |
 | Custom card fields never show a 3D Secure challenge | Expected for some accounts. 3D Secure can be off or apply only above a minimum amount, so the payment goes straight to its final status. |
 
 ## License
