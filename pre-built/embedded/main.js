@@ -21,7 +21,12 @@ window.Reservepay.initReservepayFormUI({
     // 2. Use callbacks for the UI only. The result page asks your backend for the real status.
     //    Fulfill the order after find-payment or a payment_completed webhook says SUCCESSFUL.
     onPaymentSuccess: showResult,
-    onPaymentFailed: showResult,
+    // An expired session also lands here, with details.status "EXPIRED" instead of "FAILED".
+    // On PromptPay, return early on "EXPIRED" to keep the form open for a new QR.
+    onPaymentFailed(sessionId, details) {
+      if (details?.status === "EXPIRED") console.log("Payment session expired", sessionId)
+      showResult(sessionId)
+    },
   },
 })
 
