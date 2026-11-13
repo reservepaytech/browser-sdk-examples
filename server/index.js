@@ -40,8 +40,7 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
   const paymentsBySession = new Map()
   const seenEventIds = new Set()
 
-  // Background job for a payment event. Events can be stale, so ask find-payment for the current status.
-  // Its checkout_id tells you which hosted checkout, and so which order, the payment belongs to.
+  // find-payment's checkout_id tells you which hosted checkout, and so which order, the payment belongs to.
   async function updateOrderFromPayment(paymentId) {
     const payment = await reservepay.findPayment(paymentId)
     const orderId = ordersByCheckout.get(payment.checkout_id)
