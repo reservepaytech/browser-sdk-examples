@@ -6,7 +6,7 @@
 //   POST /api/find-payment           confirm the payment status by payment session ID
 //   POST /api/start-checkout         hosted checkout: start a checkout, return its redirect_url
 //   POST /api/retrieve-checkout      hosted checkout: status after the customer returns
-//   POST /webhooks/reservepay        verify and record webhook events
+//   POST /webhooks/reservepay        verify webhook events, then match the payment to its order
 
 import { randomUUID } from "node:crypto"
 import { createServer } from "node:http"
@@ -34,10 +34,22 @@ export function loadConfig(env = process.env) {
 }
 
 export function createApp(config, { reservepay = createReservepayClient(config) } = {}) {
-  // Demo storage. Use your database in production.
+  // Demo storage. Use your database in production, with checkout_id saved on the order.
   const checkoutsByOrder = new Map()
+  const ordersByCheckout = new Map()
   const paymentsBySession = new Map()
   const seenEventIds = new Set()
+
+  // Background job for a payment event. Events can be stale, so ask find-payment for the current status.
+  // Its checkout_id tells you which hosted checkout, and so which order, the payment belongs to.
+  async function updateOrderFromPayment(paymentId) {
+    const payment = await reservepay.findPayment(paymentId)
+    const orderId = ordersByCheckout.get(payment.checkout_id)
+    // Embedded, popup and own UI payments have no checkout_id.
+    if (!orderId) return
+    // Fulfill the order here when the status is SUCCESSFUL.
+    console.log("order", orderId, payment.status, payment.checkout_id)
+  }
 
   const routes = {
     "GET /config.js": (req, res) => {
@@ -85,6 +97,7 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
         return_url: `${config.baseUrl}/hosted-checkout/return.html?order=${orderId}`,
       })
       checkoutsByOrder.set(orderId, checkout.checkout_id)
+      ordersByCheckout.set(checkout.checkout_id, orderId)
       sendJson(res, 200, { redirectUrl: checkout.redirect_url })
     },
 
@@ -115,12 +128,14 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
 
       const event = JSON.parse(rawBody.toString("utf8"))
       // Events can be retried and arrive out of order. Deduplicate by event_id.
-      if (!seenEventIds.has(event.event_id)) {
-        seenEventIds.add(event.event_id)
-        // Respond within 10 seconds. Do slow work, such as fulfillment, in a background job.
-        console.log("webhook", event.event_id, event.status, event.external_id ?? "")
-      }
+      if (seenEventIds.has(event.event_id)) return send(res, 200, "")
+      seenEventIds.add(event.event_id)
+      // Respond within 10 seconds, then do the work in a background job.
       send(res, 200, "")
+      console.log("webhook", event.event_id, event.status, event.external_id ?? "")
+      if (event.payment_id) {
+        updateOrderFromPayment(event.payment_id).catch((error) => console.error("webhook job failed", event.event_id, error))
+      }
     },
   }
 

@@ -30,7 +30,8 @@ const reservepay = {
     return { checkout_id: "chk_1", payment_id: "pay_1" }
   },
   async findPayment(paymentId) {
-    return { payment_id: paymentId, status: "SUCCESSFUL" }
+    calls.push(["findPayment", paymentId])
+    return { payment_id: paymentId, status: "SUCCESSFUL", checkout_id: paymentId === "pay_1" ? "chk_1" : null }
   },
 }
 
@@ -101,6 +102,36 @@ test("webhooks reject bad signatures and accept valid ones", async () => {
   // A retried delivery still gets 200 so Reservepay stops retrying.
   assert.equal((await send(`hmac_sha256=${signature}`)).status, 200)
 })
+
+test("a payment webhook finds the hosted checkout order through find-payment's checkout_id", async (t) => {
+  const log = t.mock.method(console, "log", () => {})
+  await postJson("/api/start-checkout", {})
+  const orderId = new URL(calls.findLast(([name]) => name === "startCheckout")[1].return_url).searchParams.get("order")
+  const sendEvent = (event) => {
+    const body = JSON.stringify(event)
+    const signature = createHmac("sha256", Buffer.from(webhookKey, "base64")).update(body).digest("hex")
+    return fetch(`${baseUrl}/webhooks/reservepay`, { method: "POST", headers: { "Reservepay-Signature": `hmac_sha256=${signature}` }, body })
+  }
+  const orderLogs = () => log.mock.calls.filter((call) => call.arguments[0] === "order").map((call) => call.arguments)
+  const findPaymentCalls = () => calls.filter(([name]) => name === "findPayment").length
+
+  const before = findPaymentCalls()
+  assert.equal((await sendEvent({ event_id: "evt_checkout", payment_id: "pay_1", status: "SUCCESSFUL" })).status, 200)
+  assert.equal((await sendEvent({ event_id: "evt_checkout", payment_id: "pay_1", status: "SUCCESSFUL" })).status, 200)
+  assert.equal((await sendEvent({ event_id: "evt_embedded", payment_id: "pay_embedded", status: "SUCCESSFUL" })).status, 200)
+  await waitFor(() => findPaymentCalls() - before === 2)
+
+  assert.deepEqual(orderLogs(), [["order", orderId, "SUCCESSFUL", "chk_1"]], "only the checkout payment maps to an order, once")
+})
+
+async function waitFor(condition, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs
+  while (!condition()) {
+    assert.ok(Date.now() < deadline, "timed out waiting for the webhook job")
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+  await new Promise((resolve) => setImmediate(resolve))
+}
 
 test("pages are served with the configured SDK URL", async () => {
   for (const page of ["/", "/pre-built/embedded/", "/pre-built/popup/", "/hosted-checkout/", "/own-ui/card/", "/own-ui/promptpay/", "/result/"]) {
