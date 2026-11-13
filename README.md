@@ -63,6 +63,7 @@ Checkout button             --> POST /api/start-checkout --------->  merchants/s
 Return page (hosted)        --> POST /api/retrieve-checkout ------>  merchants/retrieve-checkout
                                                                      + merchants/find-payment
                                 POST /webhooks/reservepay  <-------  payment_completed event
+                                                                     + merchants/find-payment
 ```
 
 - **The API key stays on the server.** The browser only gets public values from `/config.js`: your merchant ID, installation ID, and the order amount and currency.
@@ -74,6 +75,8 @@ Return page (hosted)        --> POST /api/retrieve-checkout ------>  merchants/r
 ## Webhooks
 
 `server/webhooks.js` verifies `HMAC_SHA256` and `ED25519` signatures against the raw request body.
+
+After it answers `200`, the server calls `merchants/find-payment` with the event's `payment_id`, in the background. That gives the current status, even if events arrive out of order. For a hosted checkout payment, the response's `checkout_id` is the checkout you stored when you started it, so it tells you which order to fulfill. Embedded, popup and own UI payments have no `checkout_id`.
 
 Reservepay can't call `localhost` or a private IP, so give your local server a public HTTPS URL with a tunnel. The quickest is a Cloudflare quick tunnel, which needs no account:
 
@@ -91,7 +94,7 @@ Reservepay can't call `localhost` or a private IP, so give your local server a p
    - **Webhook signature type**: `HMAC_SHA256`
    - **Requested events**: `payment_completed`
 3. Open the webhook you just created and copy its **Webhook signature** into `RESERVEPAY_WEBHOOK_KEY` in `.env`. If you chose `ED25519`, also set `RESERVEPAY_WEBHOOK_SIGNATURE_TYPE=ED25519`. The server restarts by itself.
-4. Pay with any example. The terminal logs `webhook evt_... SUCCESSFUL order_...`, or `FAILED` for a declined test card.
+4. Pay with any example. The terminal logs `webhook evt_... SUCCESSFUL order_...`, or `FAILED` for a declined test card. A hosted checkout payment also logs `order order_... SUCCESSFUL cho_...`.
 
 A quick tunnel gets a new URL each time you start it. Edit the existing webhook's destination rather than creating a new one; the webhook keeps its signature key, so `.env` stays the same.
 
