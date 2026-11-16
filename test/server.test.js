@@ -31,7 +31,10 @@ const reservepay = {
   },
   async findPayment(paymentId) {
     calls.push(["findPayment", paymentId])
-    return { payment_id: paymentId, status: "SUCCESSFUL", checkout_id: paymentId === "pay_1" ? "chk_1" : null }
+    const checkoutOrder = calls.findLast(([name]) => name === "startCheckout")?.[1].external_id
+    return paymentId === "pay_1"
+      ? { payment_id: paymentId, status: "SUCCESSFUL", external_id: checkoutOrder, checkout_id: "chk_1" }
+      : { payment_id: paymentId, status: "SUCCESSFUL", external_id: "order_embedded", checkout_id: null }
   },
 }
 
@@ -87,6 +90,7 @@ test("hosted checkout redirects, then confirms status by order", async () => {
 
   const [, args] = calls.findLast(([name]) => name === "startCheckout")
   const orderId = new URL(args.return_url).searchParams.get("order")
+  assert.equal(args.external_id, orderId, "the checkout carries the order reference")
   const result = await (await postJson("/api/retrieve-checkout", { orderId })).json()
   assert.deepEqual(result, { orderId, paymentId: "pay_1", status: "SUCCESSFUL" })
 })
@@ -103,7 +107,7 @@ test("webhooks reject bad signatures and accept valid ones", async () => {
   assert.equal((await send(`hmac_sha256=${signature}`)).status, 200)
 })
 
-test("a payment webhook finds the hosted checkout order through find-payment's checkout_id", async (t) => {
+test("a payment webhook finds the hosted checkout order through the payment's external_id", async (t) => {
   const log = t.mock.method(console, "log", () => {})
   await postJson("/api/start-checkout", {})
   const orderId = new URL(calls.findLast(([name]) => name === "startCheckout")[1].return_url).searchParams.get("order")
