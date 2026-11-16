@@ -1,5 +1,6 @@
 const button = document.querySelector("#checkout")
 const status = document.querySelector("#status")
+const locale = document.querySelector("#locale")
 
 button.addEventListener("click", async () => {
   button.disabled = true
@@ -12,6 +13,9 @@ button.addEventListener("click", async () => {
   }
   const { redirectUrl } = await response.json()
 
-  window.location.href = redirectUrl
+  // Open the checkout in the customer's language: en or th. Any other value opens it in English.
+  const url = new URL(redirectUrl)
+  url.searchParams.set("locale", locale.value)
+  window.location.href = url
   button.disabled = false
 })

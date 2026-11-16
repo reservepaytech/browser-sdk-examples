@@ -69,6 +69,7 @@ Return page (hosted)        --> POST /api/retrieve-checkout ------>  merchants/r
 - **The API key stays on the server.** The browser only gets public values from `/config.js`: your merchant ID, installation ID, and the order amount and currency.
 - **The server sets the amount.** Never trust an amount sent from the browser.
 - **Keep the payment ID with the session.** The SDK callbacks give the browser only the payment session ID, so `/api/initiate-payment-flow` stores the payment ID under it and the result page looks it up.
+- **Open hosted checkout in the customer's language.** The hosted checkout example adds `locale` (`en` or `th`) to the `redirect_url`.
 - **Callbacks are for UI.** Fulfill orders only after `merchants/find-payment` or a verified `payment_completed` webhook says `SUCCESSFUL`.
 - **Load the SDK from `sdk.reservepay.com`.** Do not bundle or self-host it. This keeps you in the lightest PCI scope.
 
@@ -76,7 +77,7 @@ Return page (hosted)        --> POST /api/retrieve-checkout ------>  merchants/r
 
 `server/webhooks.js` verifies `HMAC_SHA256` and `ED25519` signatures against the raw request body.
 
-After it answers `200`, the server calls `merchants/find-payment` with the event's `payment_id`, in the background. That gives the current status, even if events arrive out of order. For a hosted checkout payment, the response's `checkout_id` is the checkout you stored when you started it, so it tells you which order to fulfill. Embedded, popup and own UI payments have no `checkout_id`.
+After it answers `200`, the server calls `merchants/find-payment` with the event's `payment_id`, in the background. That gives the current status, even if events arrive out of order. For a hosted checkout payment, the response's `external_id` is the order reference the server passed to `merchants/start-checkout`, so it tells you which order to fulfill.
 
 Reservepay can't call `localhost` or a private IP, so give your local server a public HTTPS URL with a tunnel. The quickest is a Cloudflare quick tunnel, which needs no account:
 

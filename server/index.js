@@ -36,16 +36,15 @@ export function loadConfig(env = process.env) {
 export function createApp(config, { reservepay = createReservepayClient(config) } = {}) {
   // Demo storage. Use your database in production, with checkout_id saved on the order.
   const checkoutsByOrder = new Map()
-  const ordersByCheckout = new Map()
   const paymentsBySession = new Map()
   const seenEventIds = new Set()
 
-  // find-payment's checkout_id tells you which hosted checkout, and so which order, the payment belongs to.
+  // A hosted checkout payment carries the external_id you passed to start-checkout, so it names the order.
   async function updateOrderFromPayment(paymentId) {
     const payment = await reservepay.findPayment(paymentId)
-    const orderId = ordersByCheckout.get(payment.checkout_id)
-    // Embedded, popup and own UI payments have no checkout_id.
-    if (!orderId) return
+    const orderId = payment.external_id
+    // This demo stores only hosted checkout orders.
+    if (!checkoutsByOrder.has(orderId)) return
     // Fulfill the order here when the status is SUCCESSFUL.
     console.log("order", orderId, payment.status, payment.checkout_id)
   }
@@ -94,9 +93,10 @@ export function createApp(config, { reservepay = createReservepayClient(config) 
         amount: ORDER.amount,
         currency: ORDER.currency,
         return_url: `${config.baseUrl}/hosted-checkout/return.html?order=${orderId}`,
+        // Your order reference. Reservepay copies it onto the payment, so find-payment and webhooks carry it.
+        external_id: orderId,
       })
       checkoutsByOrder.set(orderId, checkout.checkout_id)
-      ordersByCheckout.set(checkout.checkout_id, orderId)
       sendJson(res, 200, { redirectUrl: checkout.redirect_url })
     },
 
